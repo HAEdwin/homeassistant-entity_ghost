@@ -1,3 +1,4 @@
+![image](https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png)
 # Entity Ghost
 
 A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to send entity states from one Home Assistant instance to another via UDP, or receive entity states from remote instances.
