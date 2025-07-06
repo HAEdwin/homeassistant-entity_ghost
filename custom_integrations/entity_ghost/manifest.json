@@ -1,7 +1,7 @@
 {
   "domain": "entity_ghost",
   "name": "Entity Ghost",
-  "version": "v1.0.0",
+  "version": "1.0.0",
   "documentation": "https://github.com/HAEdwin/homeassistant-entity_ghost",
   "issue_tracker": "https://github.com/HAEdwin/homeassistant-entity_ghost/issues",
   "dependencies": [],
