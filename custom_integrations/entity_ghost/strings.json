@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entity Ghost Setup",
+        "description": "Choose the operation mode for Entity Ghost",
+        "data": {
+          "mode": "Mode"
+        }
+      },
+      "broadcaster": {
+        "title": "Entity Ghost Broadcaster",
+        "description": "Configure Entity Ghost in broadcaster mode to send entity states",
+        "data": {
+          "entities": "Entities to broadcast",
+          "udp_port": "UDP Port",
+          "name": "Broadcaster Name"
+        }
+      },
+      "receiver": {
+        "title": "Entity Ghost Receiver",
+        "description": "Configure Entity Ghost in receiver mode to receive entity states",
+        "data": {
+          "udp_port": "UDP Port",
+          "broadcaster_name": "Broadcaster Name"
+        }
+      }
+    },
+    "error": {
+      "no_entities_selected": "Please select at least one entity to broadcast",
+      "port_in_use": "The specified UDP port is already in use"
+    },
+    "abort": {
+      "already_configured": "Entity Ghost is already configured for this mode and port"
+    }
+  },
+  "options": {
+    "step": {
+      "broadcaster_options": {
+        "title": "Entity Ghost Broadcaster Options",
+        "description": "Update broadcaster configuration",
+        "data": {
+          "entities": "Entities to broadcast",
+          "udp_port": "UDP Port",
+          "name": "Broadcaster Name"
+        }
+      },
+      "receiver_options": {
+        "title": "Entity Ghost Receiver Options", 
+        "description": "Update receiver configuration",
+        "data": {
+          "udp_port": "UDP Port",
+          "broadcaster_name": "Broadcaster Name"
+        }
+      }
+    },
+    "error": {
+      "no_entities_selected": "Please select at least one entity to broadcast",
+      "port_in_use": "The specified UDP port is already in use"
+    }
+  }
+}
