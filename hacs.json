@@ -1,7 +1,5 @@
 {
   "name": "Entity Ghost",
   "render_readme": true,
-  "hacs": "1.6.0",
-  "iot_class": "Local Push",
   "homeassistant": "2024.1.0"
 }
