@@ -78,7 +78,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## Troubleshooting
 
 - Ensure the UDP port is not blocked by firewall
-- Check that the broadcaster is sending to the correct IP and port
+- Check that the broadcaster and receiver are on the same port
 - Verify network connectivity between Home Assistant instances
 - Check the logs for any error messages
 
