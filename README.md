@@ -1,3 +1,7 @@
+[![hacs_badge](https://img.shields.io/github/v/release/haedwin/homeassistant-entity_ghost)](https://github.com/haedwin/homeassistant-entity_ghost)
+[![Validate with HACS](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml/badge.svg)](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml)
+[![hacs_badge](https://img.shields.io/maintenance/yes/2025)](https://github.com/haedwin/homeassistant-entity_ghost)
+
 <img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="80" height="80"/>
 
 # Entity Ghost
