@@ -9,7 +9,7 @@
 A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to send entity states from one Home Assistant instance to another via UDP, or receive entity states from remote instances.
 
 > [!TIP]
-> If you are looking for another solution that is less lightweight and works across different networks, consider this integration:
+> If you are looking for a solution that works across networks but is less lightweight, consider this integration:
 > 
 > [GitHub - custom-components/remote_homeassistant: Links multiple home-assistant instances together](https://github.com/custom-components/remote_homeassistant)
 
