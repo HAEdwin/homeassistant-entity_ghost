@@ -8,6 +8,12 @@
 
 A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to send entity states from one Home Assistant instance to another via UDP, or receive entity states from remote instances.
 
+> [!TIP]
+> If you are looking for another solution that is less lightweight and works across different networks, consider this integration:
+> 
+> [GitHub - custom-components/remote_homeassistant: Links multiple home-assistant instances together](https://github.com/custom-components/remote_homeassistant)
+
+
 ## Features
 
 ### Broadcaster Mode
@@ -41,12 +47,17 @@ A Home Assistant custom integration that combines entity broadcasting and receiv
 
 ### Receiver Mode
 - **UDP Port**: The port to listen on for entity broadcasts (1024-65535)
-- **Broadcaster Name**: A friendly name for the broadcasting Home Assistant instance
+- **Receiver Name**: A friendly name for the receiving Home Assistant instance
 
 ## Usage
 
 ### Broadcaster Mode
 Once configured, the integration will automatically broadcast state changes for the selected entities whenever they change.
+
+> [!NOTE]
+> Broadcasts do not cross routers by default. This keeps traffic local and limits overload.
+> 
+> Broadcasting can lead to network congestion if overused.
 
 ### Receiver Mode
 Once configured, the integration will:
