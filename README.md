@@ -32,13 +32,28 @@ During installation you can choose transmitter mode or receiver mode.
 - **Device Information**: Groups all received entities under a single device
 
 ## Installation
-
+### Manual installation
 1. Copy the `entity_ghost` folder to your `custom_components` directory
 2. Restart Home Assistant
 3. Go to Configuration → Integrations
 4. Click "Add Integration" and search for "Entity Ghost"
 5. Choose between Broadcaster or Receiver mode
 6. Configure the settings based on your chosen mode
+
+### Installation using HACS
+1. Open Home Assistant and go to your Home Assistant web UI.
+2. Navigate to HACS and from the sidebar, click on HACS.
+3. Add a Custom Repository: Click the "⋮" (three-dot menu) in the top right corner. Select "Custom repositories".
+In the dialog:
+URL: https://github.com/HAEdwin/homeassistant-entity_ghost
+Category: Select Integration
+Click "Add".
+4. Install the Integration, after adding, search for Entity Ghost in the HACS > Integrations tab.
+Click on it and then click "Install".
+5. Restart Home Assistant
+After installation, go to Settings > System > Restart, or use the developer tools to restart Home Assistant.
+6. Add the integration via Settings > Devices & Services > Add Integration, then search for "Entity Ghost".
+Configure it according to your needs.
 
 ## Configuration
 
