@@ -16,6 +16,8 @@ A Home Assistant custom integration that combines entity broadcasting and receiv
 
 ## Features
 
+During installation you can choose transmitter mode or receiver mode.
+
 ### Broadcaster Mode
 - **Entity Selection**: Choose specific entities to broadcast
 - **UDP Broadcasting**: Sends entity state changes via UDP
