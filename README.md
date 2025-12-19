@@ -8,7 +8,7 @@
 
 A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to __send__ entity states from one Home Assistant instance to another via UDP, or __receive__ entity states from remote instances. Entities are broadcast on your network. So you should be able to pick them up anywhere (but only within the same network/subnet).
 
-# Why
+## Why?
 
 You are programming an integration on your development environment and you want to test the entities on the production environment. Entity Ghost is my personal big helper.
 
@@ -123,5 +123,6 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
