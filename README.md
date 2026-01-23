@@ -20,7 +20,12 @@ You are programming an integration on your development environment and you want 
 
 ## Features
 
-During installation you can choose broadcaster mode or receiver mode.
+During installation you can choose broadcaster mode or receiver mode. 
+Currently only entities supported are:
+- sensor - Numeric/text sensors
+- binary_sensor - On/off sensors (motion, door, etc.)
+Do ask if you want to add a feature.
+
 
 ### Broadcaster Mode
 - **Entity Selection**: Choose specific entities to broadcast
@@ -123,6 +128,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
 
