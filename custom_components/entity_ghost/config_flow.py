@@ -11,7 +11,6 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
-from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
@@ -116,29 +115,12 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-        # Get available entities
-        entity_registry = async_get_entity_registry(self.hass)
-        entity_options = {}
-
-        for entity in entity_registry.entities.values():
-            if entity.entity_id.startswith(
-                ("sensor.", "binary_sensor.", "switch.", "light.")
-            ):
-                friendly_name = entity.original_name or entity.entity_id
-                entity_options[entity.entity_id] = (
-                    f"{entity.entity_id} ({friendly_name})"
-                )
-
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_ENTITIES): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": entity_id, "label": name}
-                            for entity_id, name in sorted(entity_options.items())
-                        ],
+                vol.Required(CONF_ENTITIES): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "binary_sensor"],
                         multiple=True,
-                        mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
                 vol.Required(CONF_UDP_PORT, default=DEFAULT_UDP_PORT): vol.All(
@@ -208,15 +190,14 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return EntityGhostOptionsFlowHandler(config_entry)
+        return EntityGhostOptionsFlowHandler()
 
 
 class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Entity Ghost."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow."""
-        self.config_entry = config_entry
+    # Type hint for the inherited config_entry property
+    config_entry: config_entries.ConfigEntry  # type: ignore[assignment]
 
     async def async_step_init(self, user_input=None) -> FlowResult:
         """Handle options flow."""
@@ -251,19 +232,6 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
             if not errors:
                 return self.async_create_entry(title="", data=user_input)
 
-        # Get available entities
-        entity_registry = async_get_entity_registry(self.hass)
-        entity_options = {}
-
-        for entity in entity_registry.entities.values():
-            if entity.entity_id.startswith(
-                ("sensor.", "binary_sensor.", "switch.", "light.")
-            ):
-                friendly_name = entity.original_name or entity.entity_id
-                entity_options[entity.entity_id] = (
-                    f"{entity.entity_id} ({friendly_name})"
-                )
-
         data_schema = vol.Schema(
             {
                 vol.Required(
@@ -271,14 +239,10 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
                     default=self.config_entry.options.get(
                         CONF_ENTITIES, self.config_entry.data.get(CONF_ENTITIES, [])
                     ),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            {"value": entity_id, "label": name}
-                            for entity_id, name in sorted(entity_options.items())
-                        ],
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=["sensor", "binary_sensor"],
                         multiple=True,
-                        mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
                 vol.Required(
