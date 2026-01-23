@@ -26,7 +26,8 @@ Currently only entities supported are:
 - sensor - Numeric/text sensors
 - binary_sensor - On/off sensors (motion, door, etc.)
 
-Do ask if you want to add a feature.
+> [!IMPORTANT]
+> Please ask me if you would like to see a feature added and I will get to work for you.
 
 
 ### Broadcaster Mode
@@ -130,6 +131,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
 
