@@ -10,7 +10,7 @@ A Home Assistant custom integration that combines entity broadcasting and receiv
 
 ## Why?
 
-You are programming an integration on your development environment and you want to test the entities on the production environment. Entity Ghost is my personal big helper.
+You are programming an integration or templates or... and you want to use production entities on your development environment. Entity Ghost is my personal big helper.
 
 > [!TIP]
 > If you are looking for a solution that works across networks but is less lightweight, consider this integration:
@@ -131,6 +131,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
 
