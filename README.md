@@ -2,7 +2,7 @@
 [![Validate with HACS](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml/badge.svg)](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml)
 [![hacs_badge](https://img.shields.io/maintenance/yes/2026)](https://github.com/haedwin/homeassistant-entity_ghost)
 
-<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="80" height="80"/>
+<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="100" height="100"/>
 
 # Entity Ghost
 
@@ -131,6 +131,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
 
