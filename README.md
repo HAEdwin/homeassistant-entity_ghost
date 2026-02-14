@@ -1,7 +1,7 @@
 [![hacs_badge](https://img.shields.io/github/v/release/haedwin/homeassistant-entity_ghost)](https://github.com/haedwin/homeassistant-entity_ghost)
 [![Validate with HACS](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml/badge.svg)](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml)
 [![hacs_badge](https://img.shields.io/maintenance/yes/2026)](https://github.com/haedwin/homeassistant-entity_ghost)
-<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="30%" height="30%"/>
+<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="31%" height="31%"/>
 # Entity Ghost
 
 A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to __send__ entity states from one Home Assistant instance to another via UDP, or __receive__ entity states from remote instances. Entities are broadcast on your network. So you should be able to pick them up anywhere (but only within the same network/subnet).
@@ -129,6 +129,7 @@ This integration is particularly useful when you have multiple Home Assistant in
 ## License
 
 MIT License - see LICENSE file for details.
+
 
 
 
