@@ -1,13 +1,13 @@
 {
   "domain": "entity_ghost",
   "name": "Entity Ghost",
-  "version": "1.1.0",
-  "documentation": "https://github.com/HAEdwin/homeassistant-entity_ghost",
-  "issue_tracker": "https://github.com/HAEdwin/homeassistant-entity_ghost/issues",
-  "dependencies": [],
   "codeowners": ["@haedwin"],
-  "requirements": [],
   "config_flow": true,
-  "iot_class": "local_push",
+  "dependencies": [],
+  "documentation": "https://github.com/HAEdwin/homeassistant-entity_ghost",
   "integration_type": "service"
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/HAEdwin/homeassistant-entity_ghost/issues",
+  "requirements": [],
+  "version": "1.1.0",
 }
