@@ -14,6 +14,13 @@ from .const import (
     CONF_UDP_PORT,
     CONF_BROADCASTER_NAME,
     DEFAULT_BROADCASTER_NAME,
+    CONF_STALE_ENTITY_POLICY,
+    CONF_STALE_ENTITY_MINUTES,
+    STALE_POLICY_KEEP_FOREVER,
+    STALE_POLICY_UNAVAILABLE_IMMEDIATELY,
+    STALE_POLICY_UNAVAILABLE_AFTER_X,
+    DEFAULT_STALE_POLICY,
+    DEFAULT_STALE_MINUTES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +49,16 @@ class EntityReceiverCoordinator:
         self._entity_added_callbacks = []
         self._status_changed_callbacks = []
         self._enabled = True  # Default to enabled
+
+        # Stale entity policy
+        self._stale_policy = entry.options.get(
+            CONF_STALE_ENTITY_POLICY,
+            entry.data.get(CONF_STALE_ENTITY_POLICY, DEFAULT_STALE_POLICY),
+        )
+        self._stale_minutes = entry.options.get(
+            CONF_STALE_ENTITY_MINUTES,
+            entry.data.get(CONF_STALE_ENTITY_MINUTES, DEFAULT_STALE_MINUTES),
+        )
 
     @property
     def entities(self) -> Dict[str, Dict[str, Any]]:
@@ -222,15 +239,22 @@ class EntityReceiverCoordinator:
             _LOGGER.error("Error processing message from %s: %s", addr[0], err)
 
     async def _cleanup_stale_entities(self) -> None:
-        """Periodically cleanup old entities."""
+        """Periodically cleanup old entities based on policy."""
         while True:
             try:
                 await asyncio.sleep(30)  # Check every 30 seconds
 
                 now = datetime.now()
-                cutoff = now - timedelta(
-                    minutes=10
-                )  # Remove entities not seen for 10 minutes
+
+                if self._stale_policy == STALE_POLICY_KEEP_FOREVER:
+                    # Never remove entities
+                    continue
+                elif self._stale_policy == STALE_POLICY_UNAVAILABLE_IMMEDIATELY:
+                    cutoff = now  # Remove as soon as not seen in last 30s
+                elif self._stale_policy == STALE_POLICY_UNAVAILABLE_AFTER_X:
+                    cutoff = now - timedelta(minutes=self._stale_minutes)
+                else:
+                    cutoff = now - timedelta(minutes=DEFAULT_STALE_MINUTES)
 
                 # Remove old entities
                 old_entities = [

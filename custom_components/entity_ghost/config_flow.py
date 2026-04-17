@@ -26,6 +26,13 @@ from .const import (
     MIN_UDP_PORT,
     MAX_UDP_PORT,
     DEFAULT_BROADCASTER_NAME,
+    CONF_STALE_ENTITY_POLICY,
+    CONF_STALE_ENTITY_MINUTES,
+    STALE_POLICY_KEEP_FOREVER,
+    STALE_POLICY_UNAVAILABLE_IMMEDIATELY,
+    STALE_POLICY_UNAVAILABLE_AFTER_X,
+    DEFAULT_STALE_POLICY,
+    DEFAULT_STALE_MINUTES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -119,7 +126,7 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_ENTITIES): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["sensor", "binary_sensor"],
+                        domain=["sensor", "binary_sensor", "switch"],
                         multiple=True,
                     )
                 ),
@@ -145,6 +152,12 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._udp_port = user_input[CONF_UDP_PORT]
             self._broadcaster_name = user_input[CONF_BROADCASTER_NAME]
+            stale_policy = user_input.get(
+                CONF_STALE_ENTITY_POLICY, DEFAULT_STALE_POLICY
+            )
+            stale_minutes = user_input.get(
+                CONF_STALE_ENTITY_MINUTES, DEFAULT_STALE_MINUTES
+            )
 
             # Validate port is not in use
             try:
@@ -166,6 +179,8 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MODE: MODE_RECEIVER,
                         CONF_UDP_PORT: self._udp_port,
                         CONF_BROADCASTER_NAME: self._broadcaster_name,
+                        CONF_STALE_ENTITY_POLICY: stale_policy,
+                        CONF_STALE_ENTITY_MINUTES: stale_minutes,
                     },
                 )
 
@@ -177,6 +192,18 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Optional(
                     CONF_BROADCASTER_NAME, default=DEFAULT_BROADCASTER_NAME
                 ): cv.string,
+                vol.Required(
+                    CONF_STALE_ENTITY_POLICY, default=DEFAULT_STALE_POLICY
+                ): vol.In(
+                    {
+                        STALE_POLICY_KEEP_FOREVER: "Keep available forever (keep last state)",
+                        STALE_POLICY_UNAVAILABLE_IMMEDIATELY: "Make unavailable immediately",
+                        STALE_POLICY_UNAVAILABLE_AFTER_X: "Make unavailable after X minutes",
+                    }
+                ),
+                vol.Required(
+                    CONF_STALE_ENTITY_MINUTES, default=DEFAULT_STALE_MINUTES
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
             }
         )
 
@@ -241,7 +268,7 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
                     ),
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
-                        domain=["sensor", "binary_sensor"],
+                        domain=["sensor", "binary_sensor", "switch"],
                         multiple=True,
                     )
                 ),
@@ -278,7 +305,6 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             # Validate port if changed
             port = user_input.get(CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT])
-
             if port != self.config_entry.data[CONF_UDP_PORT]:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -310,6 +336,30 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ),
                 ): cv.string,
+                vol.Required(
+                    CONF_STALE_ENTITY_POLICY,
+                    default=self.config_entry.options.get(
+                        CONF_STALE_ENTITY_POLICY,
+                        self.config_entry.data.get(
+                            CONF_STALE_ENTITY_POLICY, DEFAULT_STALE_POLICY
+                        ),
+                    ),
+                ): vol.In(
+                    {
+                        STALE_POLICY_KEEP_FOREVER: "Keep available forever (keep last state)",
+                        STALE_POLICY_UNAVAILABLE_IMMEDIATELY: "Make unavailable immediately",
+                        STALE_POLICY_UNAVAILABLE_AFTER_X: "Make unavailable after X minutes",
+                    }
+                ),
+                vol.Required(
+                    CONF_STALE_ENTITY_MINUTES,
+                    default=self.config_entry.options.get(
+                        CONF_STALE_ENTITY_MINUTES,
+                        self.config_entry.data.get(
+                            CONF_STALE_ENTITY_MINUTES, DEFAULT_STALE_MINUTES
+                        ),
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
             }
         )
 
