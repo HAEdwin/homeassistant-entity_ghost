@@ -7,12 +7,14 @@ A Home Assistant custom integration that combines entity broadcasting and receiv
 
 ## Why?
 
-You are programming an integration or templates or... and you want to use production entities on your development environment. Entity Ghost is my personal big helper.
+You are programming an integration, creating templates or... and you want to use production entities on your development environment. Entity Ghost is my personal big helper. You can use the entities without affecting Home Assistant production. A reboot of the development environment has no impact on the production environment.
 
 > [!TIP]
-> If you are looking for a solution that works across networks but is less lightweight, consider this integration:
+> If you are looking for a solution that works across networks and enables remote access to the Home Assistant environment, consider this integration:
 > 
 > [GitHub - custom-components/remote_homeassistant: Links multiple home-assistant instances together](https://github.com/custom-components/remote_homeassistant)
+
+The difference between the two is the use-case: Entity Ghost does not create a complete mirror of the other Home Assistant instance, but only copies entities from selected integrations.
 
 
 ## Features
