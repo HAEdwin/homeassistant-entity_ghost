@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_platform
@@ -28,8 +28,10 @@ _DEVICE_CLASS_UNITS = {
     "illuminance": {"lx"},
     "signal_strength": {"dB", "dBm"},
     "speed": {"m/s", "km/h", "mph", "ft/s", "kn"},
-    "precipitation": {"mm", "cm", "in"},
+"precipitation": {"mm", "cm", "in"},
 }
+
+_SENSOR_DEVICE_CLASSES = {device_class.value for device_class in SensorDeviceClass}
 
 
 async def async_setup_entry(
@@ -129,7 +131,19 @@ class ReceivedEntitySensor(SensorEntity):
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self._entity_id in self.coordinator.entities
+        if self._entity_id not in self.coordinator.entities:
+            return False
+        entity_data = self.coordinator.entities[self._entity_id]
+        state = entity_data.get("state")
+        if state in ("unknown", "unavailable"):
+            return False
+        device_class = entity_data.get("attributes", {}).get("device_class")
+        if device_class in ("timestamp", "uptime") and isinstance(state, str):
+            try:
+                datetime.fromisoformat(state)
+            except ValueError:
+                return False
+        return True
 
     @property
     def native_value(self) -> Any:
@@ -164,6 +178,8 @@ class ReceivedEntitySensor(SensorEntity):
             attributes = entity_data.get("attributes", {})
             device_class = attributes.get("device_class")
             unit = attributes.get("unit_of_measurement")
+            if device_class not in _SENSOR_DEVICE_CLASSES:
+                return None
             valid_units = _DEVICE_CLASS_UNITS.get(device_class)
             if valid_units is not None and unit not in valid_units:
                 return None

@@ -49,6 +49,20 @@ async def _setup_broadcaster(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up broadcaster mode."""
     # Extract configuration
     integrations = entry.data.get(CONF_INTEGRATIONS, [])
+    if not integrations:
+        legacy_entities = entry.data.get("entities", [])
+        if legacy_entities:
+            integrations = sorted(
+                {
+                    entity_id.split(".", 1)[0]
+                    for entity_id in legacy_entities
+                    if isinstance(entity_id, str) and "." in entity_id
+                }
+            )
+            if integrations:
+                hass.config_entries.async_update_entry(
+                    entry, data={**entry.data, CONF_INTEGRATIONS: integrations}
+                )
     udp_port = entry.data.get(CONF_UDP_PORT)
     name = entry.data.get(CONF_NAME, "Entity Ghost Broadcaster")
 
@@ -104,7 +118,7 @@ async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None
     if mode == MODE_BROADCASTER:
         broadcaster = data["broadcaster"]
 
-# Get updated configuration from options or data
+        # Get updated configuration from options or data
         integrations = entry.options.get(CONF_INTEGRATIONS) or entry.data.get(
             CONF_INTEGRATIONS, []
         )
@@ -114,9 +128,9 @@ async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None
         )
 
         # Update broadcaster with new configuration
-        await broadcaster.async_update_integrations(integrations)
         await broadcaster.async_update_port(udp_port)
         await broadcaster.async_update_name(name)
+        await broadcaster.async_update_integrations(integrations)
 
         _LOGGER.info("Updated Entity Ghost Broadcaster configuration")
 

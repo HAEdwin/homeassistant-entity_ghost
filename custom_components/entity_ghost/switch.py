@@ -162,7 +162,11 @@ class ReceivedEntitySwitch(SwitchEntity):
         self._platform = platform
         safe_entity_id = entity_id.replace(".", "_").replace("-", "_")
         self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_{safe_entity_id}_switch"
-        self._attr_name = f"Received {entity_id}"
+        entity_data = coordinator.get_entity_data(entity_id)
+        if entity_data and entity_data.get("attributes", {}).get("friendly_name"):
+            self._attr_name = f"Received {entity_data['attributes']['friendly_name']}"
+        else:
+            self._attr_name = f"Received {entity_id}"
         self._update_callback = None
         self._remove_callback = None
 
