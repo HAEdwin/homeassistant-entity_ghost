@@ -13,10 +13,13 @@ from .const import (
     MODE_BROADCASTER,
     MODE_RECEIVER,
     CONF_MODE,
-    CONF_ENTITIES,
+    CONF_INTEGRATIONS,
     CONF_UDP_PORT,
     CONF_NAME,
     CONF_BROADCASTER_NAME,
+    CONF_STALE_TIMEOUT,
+    DEFAULT_BROADCASTER_NAME,
+    DEFAULT_STALE_TIMEOUT,
 )
 from .broadcaster import EntityBroadcaster
 from .coordinator import EntityReceiverCoordinator
@@ -45,12 +48,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def _setup_broadcaster(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up broadcaster mode."""
     # Extract configuration
-    entities = entry.data.get(CONF_ENTITIES, [])
+    integrations = entry.data.get(CONF_INTEGRATIONS, [])
     udp_port = entry.data.get(CONF_UDP_PORT)
     name = entry.data.get(CONF_NAME, "Entity Ghost Broadcaster")
 
     # Create and setup the broadcaster
-    broadcaster = EntityBroadcaster(hass, entities, udp_port, name)
+    broadcaster = EntityBroadcaster(hass, integrations, udp_port, name)
 
     if not await broadcaster.async_setup():
         _LOGGER.error("Failed to setup Entity Ghost Broadcaster")
@@ -87,6 +90,9 @@ async def _setup_receiver(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Setup platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Set up update listener for config changes
+    entry.async_on_unload(entry.add_update_listener(async_update_listener))
+
     return True
 
 
@@ -98,19 +104,34 @@ async def async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None
     if mode == MODE_BROADCASTER:
         broadcaster = data["broadcaster"]
 
-        # Get updated configuration from options or data
-        entities = entry.options.get(CONF_ENTITIES) or entry.data.get(CONF_ENTITIES, [])
+# Get updated configuration from options or data
+        integrations = entry.options.get(CONF_INTEGRATIONS) or entry.data.get(
+            CONF_INTEGRATIONS, []
+        )
         udp_port = entry.options.get(CONF_UDP_PORT) or entry.data.get(CONF_UDP_PORT)
+        name = entry.options.get(CONF_NAME) or entry.data.get(
+            CONF_NAME, "Entity Ghost Broadcaster"
+        )
 
         # Update broadcaster with new configuration
-        await broadcaster.async_update_entities(entities)
+        await broadcaster.async_update_integrations(integrations)
         await broadcaster.async_update_port(udp_port)
+        await broadcaster.async_update_name(name)
 
         _LOGGER.info("Updated Entity Ghost Broadcaster configuration")
 
     elif mode == MODE_RECEIVER:
-        # For receiver mode, the coordinator handles options updates internally
-        _LOGGER.info("Entity Ghost Receiver configuration updated")
+        coordinator = data["coordinator"]
+        stale_timeout = entry.options.get(
+            CONF_STALE_TIMEOUT,
+            entry.data.get(CONF_STALE_TIMEOUT, DEFAULT_STALE_TIMEOUT),
+        )
+        coordinator.broadcaster_name = entry.options.get(
+            CONF_BROADCASTER_NAME,
+            entry.data.get(CONF_BROADCASTER_NAME, DEFAULT_BROADCASTER_NAME),
+        )
+        await coordinator.async_set_stale_timeout(stale_timeout)
+        _LOGGER.info("Updated Entity Ghost Receiver configuration")
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

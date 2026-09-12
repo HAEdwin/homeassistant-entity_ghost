@@ -1,18 +1,35 @@
 """Sensor platform for Entity Ghost Receiver integration."""
 
 import logging
+from datetime import datetime
 from typing import Any, Dict, Optional
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_platform
+from homeassistant.helpers.entity_platform import AddEntitiesCallback, EntityPlatform
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN, MODE_RECEIVER
 from .coordinator import EntityReceiverCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+_DEVICE_CLASS_UNITS = {
+    "power": {"W", "kW", "mW", "MW", "GW", "TW"},
+    "energy": {"Wh", "kWh", "MWh", "GWh", "TWh", "mWh"},
+    "current": {"A", "mA"},
+    "voltage": {"V", "mV", "kV"},
+    "frequency": {"Hz", "kHz", "MHz", "GHz"},
+    "temperature": {"°C", "°F", "K"},
+    "pressure": {"Pa", "hPa", "kPa", "bar", "cbar", "mbar", "psi"},
+    "humidity": {"%"},
+    "illuminance": {"lx"},
+    "signal_strength": {"dB", "dBm"},
+    "speed": {"m/s", "km/h", "mph", "ft/s", "kn"},
+    "precipitation": {"mm", "cm", "in"},
+}
 
 
 async def async_setup_entry(
@@ -27,6 +44,7 @@ async def async_setup_entry(
         return
 
     coordinator = data["coordinator"]
+    _platform = entity_platform.async_get_current_platform()
 
     # Initialize sensor tracking
     hass.data[DOMAIN][f"{entry.entry_id}_sensor_tracking"] = set()
@@ -42,7 +60,7 @@ async def async_setup_entry(
 
         if entity_id not in existing_sensors:
             if entity_id:  # Ensure entity_id is not None or empty
-                sensor = ReceivedEntitySensor(coordinator, entry, entity_id)
+                sensor = ReceivedEntitySensor(coordinator, entry, entity_id, _platform)
                 async_add_entities([sensor])
                 # Track this entity ID as having a sensor
                 existing_sensors.add(entity_id)
@@ -50,13 +68,11 @@ async def async_setup_entry(
                     f"{entry.entry_id}_sensor_tracking"
                 ] = existing_sensors
 
-                # Trigger immediate state update for the new sensor
-                sensor.async_write_ha_state()
 
-    # Callback for when entities are removed from coordinator
+# Callback for when entities are removed from coordinator
     @callback
     def async_remove_entity_sensor(entity_id: str):
-        """Remove entity from sensor tracking when coordinator removes it."""
+        """Clear tracking so a returning entity is created fresh."""
         tracking_key = f"{entry.entry_id}_sensor_tracking"
         if tracking_key in hass.data[DOMAIN]:
             hass.data[DOMAIN][tracking_key].discard(entity_id)
@@ -74,13 +90,15 @@ class ReceivedEntitySensor(SensorEntity):
         coordinator: EntityReceiverCoordinator,
         entry: ConfigEntry,
         entity_id: str,
+        platform: EntityPlatform,
     ) -> None:
         """Initialize the sensor."""
         self.coordinator = coordinator
         self._entity_id = entity_id
         self._entry = entry
+        self._platform = platform
         self._update_callback = None
-        self._status_callback = None
+        self._remove_callback = None
 
         # Validate entity_id
         if not entity_id:
@@ -105,7 +123,7 @@ class ReceivedEntitySensor(SensorEntity):
             name=f"Entity Ghost Receiver (Port {self.coordinator.port})",
             manufacturer="HAEdwin",
             model="Entity Ghost Receiver",
-            sw_version="1.0.0",
+            sw_version="2.0.0",
         )
 
     @property
@@ -114,11 +132,20 @@ class ReceivedEntitySensor(SensorEntity):
         return self._entity_id in self.coordinator.entities
 
     @property
-    def native_value(self) -> Optional[str]:
+    def native_value(self) -> Any:
         """Return the state of the received entity."""
         entity_data = self.coordinator.get_entity_data(self._entity_id)
         if entity_data:
-            return entity_data.get("state")
+            state = entity_data.get("state")
+            if state in ("unknown", "unavailable"):
+                return None
+            device_class = entity_data.get("attributes", {}).get("device_class")
+            if device_class in ("timestamp", "uptime") and isinstance(state, str):
+                try:
+                    return datetime.fromisoformat(state)
+                except ValueError:
+                    return None
+            return state
         return None
 
     @property
@@ -134,7 +161,13 @@ class ReceivedEntitySensor(SensorEntity):
         """Return the device class."""
         entity_data = self.coordinator.get_entity_data(self._entity_id)
         if entity_data:
-            return entity_data.get("attributes", {}).get("device_class")
+            attributes = entity_data.get("attributes", {})
+            device_class = attributes.get("device_class")
+            unit = attributes.get("unit_of_measurement")
+            valid_units = _DEVICE_CLASS_UNITS.get(device_class)
+            if valid_units is not None and unit not in valid_units:
+                return None
+            return device_class
         return None
 
     @property
@@ -150,6 +183,7 @@ class ReceivedEntitySensor(SensorEntity):
         attributes.update(
             {
                 "original_entity_id": self._entity_id,
+                "original_domain": entity_data.get("domain"),
                 "broadcaster_name": entity_data.get("broadcaster_name"),
                 "source_ip": entity_data.get("source_ip"),
                 "last_updated": entity_data.get("last_updated"),
@@ -193,9 +227,37 @@ class ReceivedEntitySensor(SensorEntity):
         self._update_callback = update_callback
         self.coordinator.add_entity_updated_callback(update_callback)
 
+        @callback
+        def remove_callback(entity_id: str):
+            if entity_id == self._entity_id:
+                self.async_write_ha_state()
+                self.hass.async_create_task(self._async_remove_stale())
+
+        self._remove_callback = remove_callback
+        self.coordinator.add_entity_removed_callback(remove_callback)
+
+    async def _async_remove_stale(self) -> None:
+        """Remove a stale entity and purge its history."""
+        entity_id = self.entity_id
+        await self._platform.async_remove_entity(entity_id)
+        if "recorder" in self.hass.config.components:
+            try:
+                await self.hass.services.async_call(
+                    "recorder",
+                    "purge_entities",
+                    {"entity_id": [entity_id]},
+                    blocking=False,
+                )
+            except Exception:
+                _LOGGER.exception(
+                    "Failed to purge history for stale entity %s", entity_id
+                )
+
     async def async_will_remove_from_hass(self) -> None:
         """When entity will be removed from hass."""
         # Remove update callback using public method
         if self._update_callback:
             self.coordinator.remove_entity_updated_callback(self._update_callback)
+        if self._remove_callback:
+            self.coordinator.remove_entity_removed_callback(self._remove_callback)
         await super().async_will_remove_from_hass()
