@@ -6,10 +6,12 @@ import json
 import logging
 import socket
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import EVENT_STATE_CHANGED, Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import async_track_time_interval
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ _STATE_ATTRIBUTE_KEYS = {
     "entity_category",
 }
 _MAX_UDP_PAYLOAD = 65507
+_HEARTBEAT_PERIOD = timedelta(minutes=5)
 
 
 class EntityBroadcaster:
@@ -43,6 +46,7 @@ class EntityBroadcaster:
         self._socket: socket.socket | None = None
         self._command_socket: socket.socket | None = None
         self._command_task: asyncio.Task | None = None
+        self._unsub_refresh = None
         self._unsub_track_state = None
         self._setup_complete = False
 
@@ -67,6 +71,12 @@ class EntityBroadcaster:
             # Track all state changes and filter against the current registry.
             self._unsub_track_state = self.hass.bus.async_listen(
                 EVENT_STATE_CHANGED, self._handle_state_change
+            )
+
+            # Periodically re-broadcast so seldom-changing entities (e.g. on/off
+            # switches) do not expire on the receiver's stale-entity cleanup.
+            self._unsub_refresh = async_track_time_interval(
+                self.hass, self._async_periodic_refresh, _HEARTBEAT_PERIOD
             )
 
             self._setup_complete = True
@@ -102,6 +112,16 @@ class EntityBroadcaster:
                 await self._broadcast_state_change(
                     entity_id, state.state, state.attributes
                 )
+
+    async def _async_periodic_refresh(self, now: datetime) -> None:
+        """Re-broadcast all tracked states so ghosts do not expire."""
+        await self._async_refresh_entities()
+        await self._broadcast_initial_states()
+        _LOGGER.debug(
+            "Entity Ghost Broadcaster '%s': heartbeat refresh completed (%d entities)",
+            self.name,
+            len(self.entities),
+        )
 
     async def _async_refresh_entities(self) -> None:
         """Refresh entities belonging to the selected integrations."""
@@ -385,6 +405,10 @@ class EntityBroadcaster:
         if self._unsub_track_state:
             self._unsub_track_state()
             self._unsub_track_state = None
+
+        if self._unsub_refresh:
+            self._unsub_refresh()
+            self._unsub_refresh = None
 
         if self._socket:
             self._socket.close()
