@@ -1,147 +1,254 @@
+# Entity Ghost
+
 [![hacs_badge](https://img.shields.io/github/v/release/haedwin/homeassistant-entity_ghost)](https://github.com/haedwin/homeassistant-entity_ghost)
 [![Validate with HACS](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml/badge.svg)](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml)
 [![hacs_badge](https://img.shields.io/maintenance/yes/2026)](https://github.com/haedwin/homeassistant-entity_ghost)
-# Entity Ghost
-<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity ghost" width="31%" height="31%"/>
-A Home Assistant custom integration that combines entity broadcasting and receiving capabilities. This integration allows you to __send__ entity states from one Home Assistant instance to another via UDP, or __receive__ entity states from remote instances. Entities are broadcast on your network. So you should be able to pick them up anywhere (but only within the same network/subnet).
 
-## Why?
+<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity Ghost" width="31%" height="31%"/>
 
-You are programming an integration, creating templates or... and you want to use production entities on your development environment. Entity Ghost is my personal big helper. You can use the entities without affecting Home Assistant production. A reboot of the development environment has no impact on the production environment.
+Entity Ghost is a Home Assistant custom integration that shares entity states
+between Home Assistant instances over the local network via UDP. It couples a
+**sender** instance to one or more **receiver** instances: the sender publishes
+the states of the entities it owns, and a receiver makes those states available
+as local ghost entities.
+
+Use it, for example, to develop templates, automations and dashboards against
+real production data without touching the production instance — a reboot of the
+development environment has no impact on production.
 
 > [!TIP]
-> If you are looking for a solution that works across networks and enables remote access to the Home Assistant environment, consider this integration:
-> 
-> [GitHub - custom-components/remote_homeassistant: Links multiple home-assistant instances together](https://github.com/custom-components/remote_homeassistant)
-
-The difference between the two is the use-case: Entity Ghost does not create a complete mirror of the other Home Assistant instance, but only copies entities from selected integrations.
-
+> If you need to link full instances across networks, take a look at
+> [remote_homeassistant](https://github.com/custom-components/remote_homeassistant).
+> Entity Ghost does not mirror an instance: it only copies the entities of the
+> integrations you select. This ensures that the production and development environments are kept strictly separate.
 
 ## Features
 
-During installation you can choose broadcaster mode or receiver mode. 
+When you add the integration you choose one of two modes:
 
-Currently only entities supported are:
-- sensor - Numeric/text sensors
-- binary_sensor - On/off sensors (motion, door, etc.)
+| Mode        | What it does                                                              |
+|-------------|---------------------------------------------------------------------------|
+| **Broadcaster** | Publishes the states of entities from the selected integrations on the network |
+| **Receiver**    | Listens for broadcasts and creates ghost entities for the received states     |
+
+The scope is selected **by integration, not by individual entity IDs** — all
+relevant entities of the selected integrations are handled dynamically. New or
+removed entities are picked up automatically.
+
+### Broadcaster mode
+
+- Select one or more installed integration domains; their entities are broadcast.
+- Entity state changes are published in real time over UDP broadcast.
+- Only a safe subset of metadata is sent per entity: `friendly_name`,
+  `device_class`, `unit_of_measurement`, `state_class`, `icon` and
+  `entity_category`. All other attributes stay out of the datagram.
+- An icon set in the entity registry takes precedence over the state attribute.
+
+### Receiver mode
+
+- Creates a ghost entity for every received entity.
+- Ghost entities:
+  - every received entity is mirrored as a **sensor** ghost, keeping its
+    friendly name, state and metadata. This includes received
+    `binary_sensor` entities — there is no `binary_sensor` ghost;
+  - received **switch** entities additionally get a controllable ghost switch.
+    Operating it sends a `command` back to the sender, which executes it only
+    after validating message type, entity selection, domain and the allowed
+    action (`turn_on` / `turn_off` only).
+- Groups all received entities under a single device.
+- Provides a switch to enable/disable the UDP listener.
+- Automatically removes stale entities (see below).
+
+### Limitations
+
+- Broadcasts stay on the local network/subnet; they do not cross routers by
+  default. Both instances must run on the same subnet and use the same UDP port.
+- Overusing broadcasts can congest the network.
+- Commands are restricted to `switch` entities and to `turn_on` / `turn_off`.
+- `sensor` states `unknown` and `unavailable` are never published as literal
+  values; the ghost sensor becomes `unavailable` so numeric device classes stay
+  valid. ISO-8601 strings for the `timestamp` and `uptime` device classes are
+  converted to timezone-aware values; invalid values become `unavailable`.
+- A received device class is only published when the associated unit is valid
+  for that class. If the unit is missing or incompatible, the device class is
+  omitted — the receiver never guesses a unit.
+- SNR/diagnostics: when the sender skips an oversized payload it logs a warning
+  and the entity is not broadcast.
+
+### Stale entity cleanup
+
+Received entities that stop sending updates are marked `unavailable` after a
+stale timeout, then removed from Home Assistant together with their recorded
+history. The timeout is configurable in the receiver options (minutes, default
+**10**, minimum **0** which disables cleanup). Forgetting to clean up never
+becomes a manual chore: leftover registry entries from earlier sessions are
+removed automatically as well, and a returning entity is recreated without
+duplicate IDs.
 
 > [!IMPORTANT]
-> Please ask me if you would like to see a feature added and I will get to work for you.
+> Please open an issue if you would like a feature added to Entity Ghost.
 
+## Requirements
 
-### Broadcaster Mode
-- **Entity Selection**: Choose specific entities to broadcast
-- **UDP Broadcasting**: Sends entity state changes via UDP
-- **Real-time Updates**: Broadcasts state changes immediately
-- **Configuration UI**: Easy setup through Home Assistant's configuration interface
-
-### Receiver Mode
-- **UDP Listener**: Listens for entity state broadcasts on a configurable UDP port
-- **Dynamic Entity Creation**: Automatically creates sensors for received entities
-- **Real-time Updates**: Updates entity states in real-time as broadcasts are received
-- **Entity Management**: Automatically removes stale entities that haven't been updated
-- **Device Information**: Groups all received entities under a single device
+- A reasonably current Home Assistant installation (no pinned minimum in the
+  manifest; developed and tested on Home Assistant 2026.9).
+- Home Assistant instances reachable from each other on the **same subnet**,
+  with the chosen UDP port open (default `8888`).
+- No account, API key, cloud service or physical device is required.
+- No third-party Python packages: it ships with `requirements: []` and only
+  uses Home Assistant core.
+- Most option changes take effect without a restart (a receiver UDP port
+  change is picked up after a restart); changes to the integration files
+  themselves require a full Home Assistant restart.
 
 ## Installation
-### Manual installation
-1. Copy the `entity_ghost` folder to your `custom_components` directory
-2. Restart Home Assistant
-3. Go to Configuration → Integrations
-4. Click "Add Integration" and search for "Entity Ghost"
-5. Choose between Broadcaster or Receiver mode
-6. Configure the settings based on your chosen mode
 
-### Installation using HACS
-1. Open Home Assistant and go to your Home Assistant web UI.
-2. Navigate to HACS and from the sidebar, click on HACS.
-3. Add a Custom Repository: Click the "⋮" (three-dot menu) in the top right corner. Select "Custom repositories".
-In the dialog:
-URL: https://github.com/HAEdwin/homeassistant-entity_ghost
-Category: Select Integration
-Click "Add".
-4. Install the Integration, after adding, search for Entity Ghost in the HACS > Integrations tab.
-Click on it and then click "Install".
-5. Restart Home Assistant
-After installation, go to Settings > System > Restart, or use the developer tools to restart Home Assistant.
-6. Add the integration via Settings > Devices & Services > Add Integration, then search for "Entity Ghost".
-Configure it according to your needs.
+### Installing via HACS
+
+1. In Home Assistant, open **HACS**.
+2. Open **⋮ → Custom repositories**.
+   - **Repository**: `https://github.com/HAEdwin/homeassistant-entity_ghost`
+   - **Category**: Integration
+   - Click **Add**.
+3. In **HACS → Integrations**, search for **Entity Ghost**.
+4. Click **Install**.
+5. Restart Home Assistant (Settings → System → Restart).
+6. Add the integration (see [Configuration](#configuration)).
+
+### Manual installation
+
+1. Copy the `entity_ghost` folder into your `custom_components` directory.
+2. Restart Home Assistant.
+3. Add the integration (see [Configuration](#configuration)).
 
 ## Configuration
 
-### Broadcaster Mode
-- **Entities**: Select the entities you want to broadcast
-- **UDP Port**: The port to broadcast on (1024-65535)
-- **Broadcaster Name**: A friendly name for this broadcaster
+Add the integration via **Settings → Devices & Services → Add Integration** and
+search for **Entity Ghost**. First you pick the **mode**; the fields asked for
+depend on it.
 
-### Receiver Mode
-- **UDP Port**: The port to listen on for entity broadcasts (1024-65535)
-- **Receiver Name**: A friendly name for the receiving Home Assistant instance
+**Broadcaster** flow:
+
+- **Integrations** — the integration domains to broadcast (`entity_ghost`
+  itself is excluded). Select them on the instance that owns the remote
+  entities.
+- **UDP port** — the port to broadcast on (`1024`–`65535`, default `8888`).
+- **Name** — a recognizable name for this broadcaster.
+
+**Receiver** flow:
+
+- **UDP port** — the port to listen on (`1024`–`65535`, default `8888`). Use
+  the same port as the broadcaster.
+- **Broadcaster name** — optional label of the expected broadcaster (default
+  `Remote Home Assistant`); shown as metadata on received entities.
+
+**Options** lets you adjust the settings after setup:
+
+- Broadcaster: integrations, UDP port and name — applied immediately.
+- Receiver: broadcaster name and **stale timeout** — applied immediately; a UDP
+  port change is only picked up after a restart.
+
+> [!NOTE]
+> New configurations select integrations. The old per-entity selection key
+> remains temporarily supported for migration and is not used by new setups.
 
 ## Usage
 
-### Broadcaster Mode
-Once configured, the integration will automatically broadcast state changes for the selected entities whenever they change.
+Once configured, states flow automatically in real time:
 
-> [!NOTE]
-> Broadcasts do not cross routers by default. This keeps traffic local and limits overload.
-> 
-> Broadcasting can lead to network congestion if overused.
+1. The broadcaster watches entity changes on the selected integrations and
+   sends a UDP `state` message per change.
+2. The receiver listens on the configured port, creates a ghost entity per
+   received entity and updates it in real time.
 
-### Receiver Mode
-Once configured, the integration will:
-1. Listen for UDP broadcasts on the specified port
-2. Automatically create sensors for each received entity
-3. Update sensor states in real-time
-4. Provide a switch to enable/disable the UDP listener
 
-## Entity Format
+### Created entities
 
-The component expects/sends JSON messages in the following format:
+Ghost sensors are named `Received <original entity>` (the friendly name is
+kept when the sender provides one); ghost switches follow the same naming. The
+entity IDs are derived from that name — a broadcast `sensor.smartplug_power`
+becomes e.g. `sensor.received_smartplug_power` on a fresh receiver. The
+`sensor` ghosts use a stable `unique_id` (`entity_ghost_<entry_id>_<entity>`),
+so restarts and re-setup never duplicate entities, and installations that
+already had older versions keep their historical entity IDs and friendly
+names.
 
-```json
-{
-  "broadcaster_name": "Remote Home Assistant",
-  "entity_id": "sensor.temperature",
-  "state": "23.5",
-  "attributes": {
-    "friendly_name": "Living Room Temperature",
-    "unit_of_measurement": "°C",
-    "device_class": "temperature"
-  },
-  "timestamp": 1234567890.123
-}
+Every received entity gets a sensor ghost; received `switch` entities get a
+controllable ghost switch as well. Toggling it sends a `command`
+(`turn_on` / `turn_off`) back to the sender, which validates and executes it
+locally.
+
+All ghosts, together with an *Entity Ghost Receiver* switch that
+enables/disables the UDP listener, are grouped under one device named
+`Entity Ghost Receiver (Port <port>)`.
+
+Example: use a received ghost sensor in an automation:
+
+```yaml
+automation:
+  - alias: "Notify when remote temperature changes"
+    trigger:
+      - platform: state
+        entity_id: sensor.received_temperature
+    action:
+      - service: notify.persistent_notification
+        data:
+          message: "Remote temperature is now {{ trigger.to_state.state }} °C"
 ```
-
-## Use Case
-
-This integration is particularly useful when you have multiple Home Assistant instances and want to share entity states between them. For example:
-- A production instance with physical sensors
-- A development instance that needs access to real sensor data
-- Remote monitoring setups
-- Testing environments
 
 ## Troubleshooting
 
-- Ensure the UDP port is not blocked by firewall
-- Check that the broadcaster and receiver are on the same port
-- Verify network connectivity between Home Assistant instances
-- Check the logs for any error messages
+Known points of attention:
+
+- **Same subnet and same port** — broadcasts do not cross routers. Put sender
+  and receiver on the same subnet and use the same UDP port on both sides.
+- **Firewall** — make sure nothing blocks the chosen UDP port on either side.
+- **No updates received** — verify the sender still has the integration in
+  scope and the entity is being broadcast (see logging below).
+- **Stale entities linger longer than expected** — the timeout counts from the
+  last received update; leftovers from earlier sessions are cleaned up after
+  the same timeout.
+
+### Logging
+
+At the default log level (INFO) Entity Ghost only writes on listener
+start/stop, configuration changes and actual errors — it does not log per
+message. Debug-level logging produces one or more lines per received/sent
+message and can make logs grow quickly; only enable it while investigating.
+
+To enable debug logging for this integration:
+
+- go to **Settings → System → Logs**, or
+- add to `configuration.yaml`:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.entity_ghost: debug
+```
+
+Debug logs intentionally omit full datagram payloads: they include the source
+address, payload size and entity ID where known, and for entity updates the new
+state value — but never the complete JSON payload or the attributes map.
+
+### When reporting a bug, please include
+
+- Home Assistant version (Settings → About or **About** in the sidebar) and
+  whether it runs under HA OS/Supervised/Container/Core.
+- The relevant log excerpt with debug logging for `custom_components.entity_ghost`
+  enabled, if possible.
+- A description of the steps to reproduce, and which instances (sender /
+  receiver) were involved.
+
+## Issues & Support
+
+Report bugs, feature requests and questions at the GitHub issue tracker:
+
+- **Repository**: <https://github.com/HAEdwin/homeassistant-entity_ghost>
+- **Issues**: <https://github.com/HAEdwin/homeassistant-entity_ghost/issues>
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+MIT License — see the [LICENSE](https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/LICENSE)
+file for details.
