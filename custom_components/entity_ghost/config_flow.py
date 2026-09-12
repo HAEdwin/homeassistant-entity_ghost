@@ -18,17 +18,32 @@ from .const import (
     MODE_BROADCASTER,
     MODE_RECEIVER,
     CONF_MODE,
-    CONF_ENTITIES,
+    CONF_INTEGRATIONS,
     CONF_UDP_PORT,
     CONF_NAME,
     CONF_BROADCASTER_NAME,
+    CONF_STALE_TIMEOUT,
     DEFAULT_UDP_PORT,
     MIN_UDP_PORT,
     MAX_UDP_PORT,
     DEFAULT_BROADCASTER_NAME,
+    DEFAULT_STALE_TIMEOUT,
+    STALE_TIMEOUT_MIN,
+    STALE_TIMEOUT_MAX,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _configured_integrations(hass) -> list[str]:
+    """Return configured integration domains available for selection."""
+    return sorted(
+        {
+            entry.domain
+            for entry in hass.config_entries.async_entries()
+            if entry.domain != DOMAIN
+        }
+    )
 
 
 class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -39,7 +54,7 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self._mode: str = ""
-        self._entities: list[str] = []
+        self._integrations: list[str] = []
         self._udp_port: int = DEFAULT_UDP_PORT
         self._name: str = ""
         self._broadcaster_name: str = DEFAULT_BROADCASTER_NAME
@@ -82,13 +97,13 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            self._entities = user_input.get(CONF_ENTITIES, [])
+            self._integrations = user_input.get(CONF_INTEGRATIONS, [])
             self._udp_port = user_input[CONF_UDP_PORT]
             self._name = user_input[CONF_NAME]
 
-            # Validate entities are selected
-            if not self._entities:
-                errors[CONF_ENTITIES] = "no_entities_selected"
+            # Validate integrations are selected
+            if not self._integrations:
+                errors[CONF_INTEGRATIONS] = "no_integrations_selected"
 
             # Validate port is not in use
             if not errors:
@@ -109,7 +124,7 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"Entity Ghost Broadcaster - {self._name}",
                     data={
                         CONF_MODE: MODE_BROADCASTER,
-                        CONF_ENTITIES: self._entities,
+                        CONF_INTEGRATIONS: self._integrations,
                         CONF_UDP_PORT: self._udp_port,
                         CONF_NAME: self._name,
                     },
@@ -117,9 +132,9 @@ class EntityGhostConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         data_schema = vol.Schema(
             {
-                vol.Required(CONF_ENTITIES): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain=["sensor", "binary_sensor"],
+                vol.Required(CONF_INTEGRATIONS): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_configured_integrations(self.hass),
                         multiple=True,
                     )
                 ),
@@ -213,10 +228,10 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
 
         if user_input is not None:
-            # Validate entities are selected
-            entities = user_input.get(CONF_ENTITIES, [])
-            if not entities:
-                errors[CONF_ENTITIES] = "no_entities_selected"
+            # Validate integrations are selected
+            integrations = user_input.get(CONF_INTEGRATIONS, [])
+            if not integrations:
+                errors[CONF_INTEGRATIONS] = "no_integrations_selected"
 
             # Validate port if changed
             port = user_input.get(CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT])
@@ -235,13 +250,14 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
         data_schema = vol.Schema(
             {
                 vol.Required(
-                    CONF_ENTITIES,
+                    CONF_INTEGRATIONS,
                     default=self.config_entry.options.get(
-                        CONF_ENTITIES, self.config_entry.data.get(CONF_ENTITIES, [])
+                        CONF_INTEGRATIONS,
+                        self.config_entry.data.get(CONF_INTEGRATIONS, []),
                     ),
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(
-                        domain=["sensor", "binary_sensor"],
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=_configured_integrations(self.hass),
                         multiple=True,
                     )
                 ),
@@ -310,6 +326,15 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
                         ),
                     ),
                 ): cv.string,
+                vol.Optional(
+                    CONF_STALE_TIMEOUT,
+                    default=self.config_entry.options.get(
+                        CONF_STALE_TIMEOUT, DEFAULT_STALE_TIMEOUT
+                    ),
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(min=STALE_TIMEOUT_MIN, max=STALE_TIMEOUT_MAX),
+                ),
             }
         )
 

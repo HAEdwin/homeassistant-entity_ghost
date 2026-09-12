@@ -9,11 +9,15 @@ from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers import entity_registry as er
 
 from .const import (
+    DOMAIN,
     CONF_UDP_PORT,
     CONF_BROADCASTER_NAME,
+    CONF_STALE_TIMEOUT,
     DEFAULT_BROADCASTER_NAME,
+    DEFAULT_STALE_TIMEOUT,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -31,12 +35,18 @@ class EntityReceiverCoordinator:
             CONF_BROADCASTER_NAME,
             entry.data.get(CONF_BROADCASTER_NAME, DEFAULT_BROADCASTER_NAME),
         )
+        self.stale_timeout_minutes = entry.options.get(
+            CONF_STALE_TIMEOUT,
+            entry.data.get(CONF_STALE_TIMEOUT, DEFAULT_STALE_TIMEOUT),
+        )
 
         self._socket: Optional[socket.socket] = None
+        self._send_socket: Optional[socket.socket] = None
         self._listen_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._entities: Dict[str, Dict[str, Any]] = {}
         self._last_seen: Dict[str, datetime] = {}
+        self._orphan_since: Dict[str, datetime] = {}
         self._entity_removed_callbacks = []
         self._entity_updated_callbacks = []
         self._entity_added_callbacks = []
@@ -86,12 +96,12 @@ class EntityReceiverCoordinator:
         if was_enabled:
             self._notify_status_changed()
 
-    async def async_set_enabled(self, enabled: bool) -> None:
-        """Set the enabled state of the UDP listener."""
-        if enabled and not self._enabled:
-            await self.async_enable()
-        elif not enabled and self._enabled:
-            await self.async_disable()
+    async def async_set_stale_timeout(self, timeout_minutes: int) -> None:
+        """Update the stale timeout from an options change."""
+        self.stale_timeout_minutes = timeout_minutes
+        _LOGGER.debug(
+            "Updated Entity Ghost stale timeout to %s minutes", timeout_minutes
+        )
 
     async def async_start(self) -> None:
         """Start the UDP listener."""
@@ -104,6 +114,7 @@ class EntityReceiverCoordinator:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.setblocking(False)
             self._socket.bind(("", self.port))
+            self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
             self._listen_task = asyncio.create_task(self._listen_for_messages())
             self._cleanup_task = asyncio.create_task(self._cleanup_stale_entities())
@@ -140,6 +151,10 @@ class EntityReceiverCoordinator:
             self._socket.close()
             self._socket = None
 
+        if self._send_socket:
+            self._send_socket.close()
+            self._send_socket = None
+
         _LOGGER.info("Stopped Entity Ghost Receiver UDP listener")
 
         # Notify status change
@@ -151,7 +166,13 @@ class EntityReceiverCoordinator:
             try:
                 # Use asyncio to avoid blocking
                 loop = asyncio.get_event_loop()
-                data, addr = await loop.sock_recvfrom(self._socket, 4096)
+                data, addr = await loop.sock_recvfrom(self._socket, 65535)
+                _LOGGER.debug(
+                    "Received UDP datagram from %s:%s (%d bytes)",
+                    addr[0],
+                    addr[1],
+                    len(data),
+                )
 
                 # Process the message immediately when received
                 await self._process_message(data, addr)
@@ -167,6 +188,16 @@ class EntityReceiverCoordinator:
         try:
             # Decode JSON message
             message = json.loads(data.decode("utf-8"))
+
+            if message.get("message_type", "state") != "state":
+                _LOGGER.debug(
+                    "Ignored non-state UDP message from %s:%s (type=%s, %d bytes)",
+                    addr[0],
+                    addr[1],
+                    message.get("message_type"),
+                    len(data),
+                )
+                return
 
             # Extract entity information
             entity_id = message.get("entity_id")
@@ -184,14 +215,23 @@ class EntityReceiverCoordinator:
             # Store entity data
             self._entities[entity_id] = {
                 "entity_id": entity_id,
+                "domain": message.get("domain", entity_id.split(".", 1)[0]),
                 "state": message.get("state"),
                 "attributes": message.get("attributes", {}),
-                "broadcaster_name": message.get("broadcaster_name", "Unknown"),
+                "broadcaster_name": message.get("broadcaster_name") or self.broadcaster_name,
                 "source_ip": addr[0],
                 "last_updated": datetime.now(),
             }
 
             self._last_seen[entity_id] = datetime.now()
+
+            _LOGGER.debug(
+                "Decoded UDP state message from %s:%s for %s (%d bytes)",
+                addr[0],
+                addr[1],
+                entity_id,
+                len(data),
+            )
 
             # Notify listeners immediately
             if is_new_entity:
@@ -222,36 +262,98 @@ class EntityReceiverCoordinator:
             _LOGGER.error("Error processing message from %s: %s", addr[0], err)
 
     async def _cleanup_stale_entities(self) -> None:
-        """Periodically cleanup old entities."""
+        """Periodically cleanup stale entities."""
         while True:
             try:
-                await asyncio.sleep(30)  # Check every 30 seconds
+                timeout_minutes = self.stale_timeout_minutes
+                if timeout_minutes > 0:
+                    now = datetime.now()
+                    cutoff = now - timedelta(minutes=timeout_minutes)
 
-                now = datetime.now()
-                cutoff = now - timedelta(
-                    minutes=10
-                )  # Remove entities not seen for 10 minutes
+                    # Remove old entities
+                    old_entities = [
+                        entity_id
+                        for entity_id, last_seen in self._last_seen.items()
+                        if last_seen < cutoff
+                    ]
 
-                # Remove old entities
-                old_entities = [
-                    entity_id
-                    for entity_id, last_seen in self._last_seen.items()
-                    if last_seen < cutoff
-                ]
+                    for entity_id in old_entities:
+                        self._entities.pop(entity_id, None)
+                        self._last_seen.pop(entity_id, None)
+                        _LOGGER.debug("Removed stale entity: %s", entity_id)
 
-                for entity_id in old_entities:
-                    self._entities.pop(entity_id, None)
-                    self._last_seen.pop(entity_id, None)
-                    _LOGGER.debug("Removed stale entity: %s", entity_id)
+                        # Notify callbacks about removed entities
+                        for cb in self._entity_removed_callbacks:
+                            cb(entity_id)
 
-                    # Notify callbacks about removed entities
-                    for cb in self._entity_removed_callbacks:
-                        cb(entity_id)
+                    # Remove registered entities left over from a previous
+                    # session whose source stopped broadcasting.
+                    await self._remove_stale_registered_entities(cutoff)
 
             except asyncio.CancelledError:
                 break
             except (OSError, ValueError) as err:
                 _LOGGER.error("Error during entity cleanup: %s", err)
+
+            await asyncio.sleep(30)  # Check every 30 seconds
+
+    async def _remove_stale_registered_entities(self, cutoff: datetime) -> None:
+        """Remove receiver-owned registry entries that were never seen this session."""
+        registry = er.async_get(self.hass)
+        prefix = f"{DOMAIN}_{self.entry.entry_id}_"
+
+        expected_ids = set()
+        for source_id in self._entities:
+            safe = source_id.replace(".", "_").replace("-", "_")
+            expected_ids.add(f"{prefix}{safe}")
+            expected_ids.add(f"{prefix}{safe}_switch")
+
+        now = datetime.now()
+        for reg_entry in list(registry.entities.values()):
+            uid = reg_entry.unique_id
+            if not uid or not uid.startswith(prefix):
+                continue
+            if uid.endswith("_listener_enabled"):
+                continue
+            if uid in expected_ids:
+                # Source is currently active; stop tracking this orphan.
+                self._orphan_since.pop(uid, None)
+                continue
+            if uid not in self._orphan_since:
+                self._orphan_since[uid] = now
+
+        for uid, since in list(self._orphan_since.items()):
+            if since >= cutoff:
+                continue
+            reg_entry = next(
+                (entry for entry in registry.entities.values() if entry.unique_id == uid),
+                None,
+            )
+            if reg_entry is None:
+                self._orphan_since.pop(uid, None)
+                continue
+
+            _LOGGER.debug("Removing stale registered entity: %s", reg_entry.entity_id)
+            try:
+                registry.async_remove(reg_entry.entity_id)
+            except KeyError:
+                self._orphan_since.pop(uid, None)
+                continue
+            self._orphan_since.pop(uid, None)
+
+            if "recorder" in self.hass.config.components:
+                try:
+                    await self.hass.services.async_call(
+                        "recorder",
+                        "purge_entities",
+                        {"entity_id": [reg_entry.entity_id]},
+                        blocking=False,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to purge history for stale registered entity %s",
+                        reg_entry.entity_id,
+                    )
 
     def add_entity_added_callback(self, cb):
         """Add callback for when new entities are added."""
@@ -279,6 +381,11 @@ class EntityReceiverCoordinator:
         if cb in self._entity_updated_callbacks:
             self._entity_updated_callbacks.remove(cb)
 
+    def remove_entity_removed_callback(self, cb):
+        """Remove an entity removed callback."""
+        if cb in self._entity_removed_callbacks:
+            self._entity_removed_callbacks.remove(cb)
+
     def _notify_status_changed(self):
         """Notify all status change callbacks."""
         for cb in self._status_changed_callbacks:
@@ -291,3 +398,36 @@ class EntityReceiverCoordinator:
     def get_entity_data(self, entity_id: str) -> Optional[Dict[str, Any]]:
         """Get data for a specific entity."""
         return self._entities.get(entity_id)
+
+    async def async_send_command(self, entity_id: str, action: str) -> bool:
+        """Send a command for a received entity back to its broadcaster."""
+        entity_data = self._entities.get(entity_id)
+        if not entity_data or not self._send_socket:
+            return False
+
+        if action not in ("turn_on", "turn_off"):
+            _LOGGER.warning("Rejected unsupported Entity Ghost action: %s", action)
+            return False
+
+        message = {
+            "message_type": "command",
+            "entity_id": entity_id,
+            "action": action,
+            "broadcaster_name": entity_data.get("broadcaster_name"),
+        }
+        data = json.dumps(message).encode("utf-8")
+        source_ip = entity_data.get("source_ip")
+        if not source_ip:
+            return False
+
+        _LOGGER.debug(
+            "Sending UDP command for %s to %s:%s (%d bytes)",
+            entity_id,
+            source_ip,
+            self.port,
+            len(data),
+        )
+        await self.hass.async_add_executor_job(
+            self._send_socket.sendto, data, (source_ip, self.port)
+        )
+        return True

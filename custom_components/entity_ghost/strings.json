@@ -12,7 +12,7 @@
         "title": "Entity Ghost Broadcaster",
         "description": "Configure Entity Ghost in broadcaster mode to send entity states",
         "data": {
-          "entities": "Entities to broadcast",
+          "integrations": "Integrations to broadcast",
           "udp_port": "UDP Port",
           "name": "Broadcaster Name"
         }
@@ -27,7 +27,7 @@
       }
     },
     "error": {
-      "no_entities_selected": "Please select at least one entity to broadcast",
+      "no_integrations_selected": "Please select at least one integration to broadcast",
       "port_in_use": "The specified UDP port is already in use"
     },
     "abort": {
@@ -40,7 +40,7 @@
         "title": "Entity Ghost Broadcaster Options",
         "description": "Update broadcaster configuration",
         "data": {
-          "entities": "Entities to broadcast",
+          "integrations": "Integrations to broadcast",
           "udp_port": "UDP Port",
           "name": "Broadcaster Name"
         }
@@ -55,7 +55,7 @@
       }
     },
     "error": {
-      "no_entities_selected": "Please select at least one entity to broadcast",
+      "no_integrations_selected": "Please select at least one integration to broadcast",
       "port_in_use": "The specified UDP port is already in use"
     }
   }
