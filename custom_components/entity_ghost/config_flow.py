@@ -234,8 +234,11 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
                 errors[CONF_INTEGRATIONS] = "no_integrations_selected"
 
             # Validate port if changed
-            port = user_input.get(CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT])
-            if port != self.config_entry.data[CONF_UDP_PORT]:
+            effective_port = self.config_entry.options.get(
+                CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT]
+            )
+            port = user_input.get(CONF_UDP_PORT, effective_port)
+            if port != effective_port:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -293,9 +296,12 @@ class EntityGhostOptionsFlowHandler(config_entries.OptionsFlow):
 
         if user_input is not None:
             # Validate port if changed
-            port = user_input.get(CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT])
+            effective_port = self.config_entry.options.get(
+                CONF_UDP_PORT, self.config_entry.data[CONF_UDP_PORT]
+            )
+            port = user_input.get(CONF_UDP_PORT, effective_port)
 
-            if port != self.config_entry.data[CONF_UDP_PORT]:
+            if port != effective_port:
                 try:
                     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

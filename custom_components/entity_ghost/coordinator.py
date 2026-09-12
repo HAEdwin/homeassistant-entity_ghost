@@ -189,6 +189,15 @@ class EntityReceiverCoordinator:
             # Decode JSON message
             message = json.loads(data.decode("utf-8"))
 
+            if not isinstance(message, dict):
+                _LOGGER.warning(
+                    "Received non-object UDP message from %s:%s (%s)",
+                    addr[0],
+                    addr[1],
+                    type(message).__name__,
+                )
+                return
+
             if message.get("message_type", "state") != "state":
                 _LOGGER.debug(
                     "Ignored non-state UDP message from %s:%s (type=%s, %d bytes)",
