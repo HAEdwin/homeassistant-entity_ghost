@@ -40,8 +40,8 @@ class EntityReceiverCoordinator:
             entry.data.get(CONF_STALE_TIMEOUT, DEFAULT_STALE_TIMEOUT),
         )
 
-        self._socket: Optional[socket.socket] = None
-        self._send_socket: Optional[socket.socket] = None
+        self._socket: Optional[socket.socket] = None
+        self._send_socket: Optional[socket.socket] = None
         self._listen_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._entities: Dict[str, Dict[str, Any]] = {}
@@ -110,11 +110,11 @@ class EntityReceiverCoordinator:
             return
 
         try:
-            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.setblocking(False)
-            self._socket.bind(("", self.port))
-            self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._socket.bind(("", self.port))
+            self._send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
             self._listen_task = asyncio.create_task(self._listen_for_messages())
             self._cleanup_task = asyncio.create_task(self._cleanup_stale_entities())
@@ -147,14 +147,14 @@ class EntityReceiverCoordinator:
                 pass
             self._cleanup_task = None
 
-        if self._socket:
-            self._socket.close()
-            self._socket = None
+        if self._socket:
+            self._socket.close()
+            self._socket = None
 
-        if self._send_socket:
-            self._send_socket.close()
-            self._send_socket = None
-
+        if self._send_socket:
+            self._send_socket.close()
+            self._send_socket = None
+
         _LOGGER.info("Stopped Entity Ghost Receiver UDP listener")
 
         # Notify status change
@@ -165,18 +165,18 @@ class EntityReceiverCoordinator:
         while True:
             try:
                 # Use asyncio to avoid blocking
-                loop = asyncio.get_event_loop()
-                data, addr = await loop.sock_recvfrom(self._socket, 65535)
-                _LOGGER.debug(
-                    "Received UDP datagram from %s:%s (%d bytes)",
-                    addr[0],
-                    addr[1],
-                    len(data),
-                )
+                loop = asyncio.get_event_loop()
+                data, addr = await loop.sock_recvfrom(self._socket, 65535)
+                _LOGGER.debug(
+                    "Received UDP datagram from %s:%s (%d bytes)",
+                    addr[0],
+                    addr[1],
+                    len(data),
+                )
 
-                # Process the message immediately when received
-                await self._process_message(data, addr)
-
+                # Process the message immediately when received
+                await self._process_message(data, addr)
+
             except asyncio.CancelledError:
                 break
             except OSError as err:
@@ -197,18 +197,25 @@ class EntityReceiverCoordinator:
                     type(message).__name__,
                 )
                 return
+            if not isinstance(message.get("attributes", {}), dict):
+                _LOGGER.warning(
+                    "Received state message with non-object attributes from %s:%s",
+                    addr[0],
+                    addr[1],
+                )
+                return
 
-            if message.get("message_type", "state") != "state":
-                _LOGGER.debug(
-                    "Ignored non-state UDP message from %s:%s (type=%s, %d bytes)",
-                    addr[0],
-                    addr[1],
-                    message.get("message_type"),
-                    len(data),
-                )
-                return
-
-            # Extract entity information
+            if message.get("message_type", "state") != "state":
+                _LOGGER.debug(
+                    "Ignored non-state UDP message from %s:%s (type=%s, %d bytes)",
+                    addr[0],
+                    addr[1],
+                    message.get("message_type"),
+                    len(data),
+                )
+                return
+
+            # Extract entity information
             entity_id = message.get("entity_id")
             if not entity_id or not isinstance(entity_id, str) or not entity_id.strip():
                 _LOGGER.warning(
@@ -222,26 +229,26 @@ class EntityReceiverCoordinator:
             is_new_entity = entity_id not in self._entities
 
             # Store entity data
-            self._entities[entity_id] = {
-                "entity_id": entity_id,
-                "domain": message.get("domain", entity_id.split(".", 1)[0]),
-                "state": message.get("state"),
+            self._entities[entity_id] = {
+                "entity_id": entity_id,
+                "domain": message.get("domain", entity_id.split(".", 1)[0]),
+                "state": message.get("state"),
                 "attributes": message.get("attributes", {}),
                 "broadcaster_name": message.get("broadcaster_name") or self.broadcaster_name,
                 "source_ip": addr[0],
                 "last_updated": datetime.now(),
             }
 
-            self._last_seen[entity_id] = datetime.now()
+            self._last_seen[entity_id] = datetime.now()
 
-            _LOGGER.debug(
-                "Decoded UDP state message from %s:%s for %s (%d bytes)",
-                addr[0],
-                addr[1],
-                entity_id,
-                len(data),
-            )
-
+            _LOGGER.debug(
+                "Decoded UDP state message from %s:%s for %s (%d bytes)",
+                addr[0],
+                addr[1],
+                entity_id,
+                len(data),
+            )
+
             # Notify listeners immediately
             if is_new_entity:
                 for cb in self._entity_added_callbacks:
@@ -385,16 +392,16 @@ class EntityReceiverCoordinator:
         if cb in self._status_changed_callbacks:
             self._status_changed_callbacks.remove(cb)
 
-    def remove_entity_updated_callback(self, cb):
-        """Remove an entity updated callback."""
-        if cb in self._entity_updated_callbacks:
-            self._entity_updated_callbacks.remove(cb)
+    def remove_entity_updated_callback(self, cb):
+        """Remove an entity updated callback."""
+        if cb in self._entity_updated_callbacks:
+            self._entity_updated_callbacks.remove(cb)
 
-    def remove_entity_removed_callback(self, cb):
-        """Remove an entity removed callback."""
-        if cb in self._entity_removed_callbacks:
-            self._entity_removed_callbacks.remove(cb)
-
+    def remove_entity_removed_callback(self, cb):
+        """Remove an entity removed callback."""
+        if cb in self._entity_removed_callbacks:
+            self._entity_removed_callbacks.remove(cb)
+
     def _notify_status_changed(self):
         """Notify all status change callbacks."""
         for cb in self._status_changed_callbacks:
@@ -404,39 +411,39 @@ class EntityReceiverCoordinator:
                 _LOGGER.error("Error in status changed callback: %s", err)
 
     @callback
-    def get_entity_data(self, entity_id: str) -> Optional[Dict[str, Any]]:
-        """Get data for a specific entity."""
-        return self._entities.get(entity_id)
-
-    async def async_send_command(self, entity_id: str, action: str) -> bool:
-        """Send a command for a received entity back to its broadcaster."""
-        entity_data = self._entities.get(entity_id)
-        if not entity_data or not self._send_socket:
-            return False
-
-        if action not in ("turn_on", "turn_off"):
-            _LOGGER.warning("Rejected unsupported Entity Ghost action: %s", action)
-            return False
-
-        message = {
-            "message_type": "command",
-            "entity_id": entity_id,
-            "action": action,
-            "broadcaster_name": entity_data.get("broadcaster_name"),
-        }
-        data = json.dumps(message).encode("utf-8")
-        source_ip = entity_data.get("source_ip")
-        if not source_ip:
-            return False
-
-        _LOGGER.debug(
-            "Sending UDP command for %s to %s:%s (%d bytes)",
-            entity_id,
-            source_ip,
-            self.port,
-            len(data),
-        )
-        await self.hass.async_add_executor_job(
-            self._send_socket.sendto, data, (source_ip, self.port)
-        )
-        return True
+    def get_entity_data(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """Get data for a specific entity."""
+        return self._entities.get(entity_id)
+
+    async def async_send_command(self, entity_id: str, action: str) -> bool:
+        """Send a command for a received entity back to its broadcaster."""
+        entity_data = self._entities.get(entity_id)
+        if not entity_data or not self._send_socket:
+            return False
+
+        if action not in ("turn_on", "turn_off"):
+            _LOGGER.warning("Rejected unsupported Entity Ghost action: %s", action)
+            return False
+
+        message = {
+            "message_type": "command",
+            "entity_id": entity_id,
+            "action": action,
+            "broadcaster_name": entity_data.get("broadcaster_name"),
+        }
+        data = json.dumps(message).encode("utf-8")
+        source_ip = entity_data.get("source_ip")
+        if not source_ip:
+            return False
+
+        _LOGGER.debug(
+            "Sending UDP command for %s to %s:%s (%d bytes)",
+            entity_id,
+            source_ip,
+            self.port,
+            len(data),
+        )
+        await self.hass.async_add_executor_job(
+            self._send_socket.sendto, data, (source_ip, self.port)
+        )
+        return True
