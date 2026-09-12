@@ -60,8 +60,8 @@ class EntityBroadcaster:
             self._command_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._command_socket.setblocking(False)
             self._command_socket.bind(("", self.udp_port))
-            self._command_task = self.hass.async_create_task(
-                self._listen_for_commands()
+            self._command_task = self.hass.async_create_background_task(
+                self._listen_for_commands(), "entity_ghost command listener"
             )
 
             # Track all state changes and filter against the current registry.
@@ -359,7 +359,9 @@ class EntityBroadcaster:
             self._command_socket.close()
 
         self._command_socket = new_socket
-        self._command_task = self.hass.async_create_task(self._listen_for_commands())
+        self._command_task = self.hass.async_create_background_task(
+            self._listen_for_commands(), "entity_ghost command listener"
+        )
 
         _LOGGER.debug(
             "Updated UDP port for Entity Ghost Broadcaster '%s': %d -> %d",
