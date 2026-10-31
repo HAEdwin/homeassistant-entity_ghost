@@ -1,16 +1,17 @@
-# Entity Ghost
+<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/custom_components/entity_ghost/brand/dark_logo%402x.png" alt="Entity Ghost" width="20%"/>
 
 [![hacs_badge](https://img.shields.io/github/v/release/haedwin/homeassistant-entity_ghost)](https://github.com/haedwin/homeassistant-entity_ghost)
 [![Validate with HACS](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml/badge.svg)](https://github.com/HAEdwin/homeassistant-entity_ghost/actions/workflows/validate%20with%20HACS.yaml)
 [![hacs_badge](https://img.shields.io/maintenance/yes/2026)](https://github.com/haedwin/homeassistant-entity_ghost)
 
-<img src="https://github.com/HAEdwin/homeassistant-entity_ghost/blob/main/icon.png" alt="Entity Ghost" width="31%" height="31%"/>
-
 Entity Ghost is a Home Assistant custom integration that shares entity states
-between Home Assistant instances over the local network via UDP. It couples a
+between your Home Assistant instances over the local network via UDP. It couples a
 **sender** instance to one or more **receiver** instances: the sender publishes
 the states of the entities it owns, and a receiver makes those states available
 as local ghost entities.
+
+In short, it makes your entities haunt another Home Assistant instance (but breaks nothing).
+The only really spooky thing is... do you see the ghost or a man with weird ears and a v-neck shirt?
 
 Use it, for example, to develop templates, automations and dashboards against
 real production data without touching the production instance — a reboot of the
